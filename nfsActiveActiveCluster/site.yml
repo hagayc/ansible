@@ -1,0 +1,10 @@
+- hosts: nfservers 
+  remote_user: root
+
+  roles:
+    - updates
+    - lvm
+    - cluster
+#    - newrelic
+
+

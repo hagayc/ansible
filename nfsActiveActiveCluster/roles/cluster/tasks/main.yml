@@ -1,0 +1,126 @@
+### Install drbd module ###
+- name: install the drbd module
+  yum: name=kmod-drbd84.x86_64 state=present
+  tags: drbd
+
+- name: install the drbd Utils
+  yum: name=drbd84-utils.x86_64 state=present
+  tags: drbd
+
+- name: Insert driver
+  modprobe: name=drbd state=present
+  tags: drbd
+
+- name: Set drbd config file
+  template: src=/etc/ansible/playbooks/nfs-cluster/roles/cluster/templates/global_common.conf.j2 dest=/etc/drbd.d/global_common.conf
+  tags: drbd
+
+- name: Set drbd disk config file
+  template: src=/etc/ansible/playbooks/nfs-cluster/roles/cluster/templates/nfs-lv.res.j2 dest=/etc/drbd.d/nfs-lv.res
+  tags: drbd
+  notify:
+    - Start the drbd service
+
+#- shell: drbd-overview | awk '{print $2}'
+#  register: drbd_state
+#  ignore_errors: True
+
+- name: Create the drbd-disk
+  command: /sbin/drbdadm -- --force create-md nfs-lv
+#  when: drbd_state.rc != "Connected"
+  tags: drbd
+  notify:
+    - Disable drbd service
+
+### Restart qmnfs02 drbd service ###
+- name: Restart drbd on qmnfs02
+  service: name=drbd state=restarted
+  run_once: true
+  delegate_to: qmnfs02
+
+### Restart drbd only on qmnfs01 ###
+- name: Restart drbd on qmnfs01
+  service: name=drbd state=restarted
+  run_once: true
+  delegate_to: qmnfs01
+
+### Force only one primary ###
+- name: Force sync from only one node
+  command: drbdadm primary --force nfs-lv
+  tags: primary
+  run_once: true
+  delegate_to: qmnfs01
+
+### Start drbd on qmnfs02 ###
+#- name: Start drbd on All
+#  service: name=drbd state=started
+##  notify:
+##    - Start the drbd service
+#  run_once: true
+#  delegate_to: qmnfs02
+
+
+### GFS ###
+  tags: clusterfs
+- name: Install GFS
+  yum: state=present pkg={{ item }}
+  with_items:
+        - gfs2-utils
+        - cman
+        - pacemaker
+        - pacemaker-cli
+        - fence-agents
+        - resource-agents
+        - openais
+- name: Set Cluster config file
+  template: src=/etc/ansible/playbooks/nfs-cluster/roles/cluster/templates/cluster.conf.j2 dest=/etc/cluster/cluster.conf
+- name: Configure corosync
+  template: src=/etc/ansible/playbooks/nfs-cluster/roles/cluster/templates/corosync.conf.j2 dest=/etc/corosync/corosync.conf
+
+### Dual-Primary ###
+  tags: dual-primary
+- name: adjust both drbd
+  command: drbdadm adjust nfs-lv
+- name: promote both drbd
+  command: drbdadm primary nfs-lv
+
+### Pause for 1 min to allow sync ###
+- pause: minutes=3
+
+### Create the GFS file-system and configure pacemaker ###
+  tags: clusterfs
+- name: Setup Pacemaker on all relevant runlevels
+  service: name=pacemaker enabled=yes
+  notify: Start the Pacemaker service
+- name: Create the gfs clustered file system
+  command: mkfs.gfs2 -O -t pacemaker:storage -p lock_dlm -j 2 /dev/drbd1
+- name: Create the mountpoint folder
+  command: mkdir -p /storage
+
+### HA Clustering ###
+  tags: ha
+- name: Configure ha-clustering yum repo
+  template: src=/etc/ansible/playbooks/nfs-cluster/roles/cluster/templates/ha-cluster.repo.j2 dest=/etc/yum.repos.d/ha-cluster.repo
+- name: Install the crm shell to control pacemaker
+  yum: state=present pkg={{ item }}
+  with_items:
+    - crmsh
+    - graphviz
+
+- name: disable stonith config file
+  template: src=/etc/ansible/playbooks/nfs-cluster/roles/cluster/templates/stonith-disable.j2 dest=/root/.ansible/stonith-disable
+- name: disable stonith
+  command: crm -f /root/.ansible/stonith-disable
+- name: enable stonith config file
+  template: src=/etc/ansible/playbooks/nfs-cluster/roles/cluster/templates/stonith-enable.j2 dest=/root/.ansible/stonith-enable
+- name: Configure and Enable stonith
+  command: crm -f /root/.ansible/stonith-enable
+
+- name: Start Pacemaker
+  command: service pacemaker start
+
+### Mount Active-Active clusterFS ###
+  tags: mount
+- name: Mount the new gfs device
+  command: mount -t gfs2 -o noatime,nodiratime /dev/drbd1 /storage
+

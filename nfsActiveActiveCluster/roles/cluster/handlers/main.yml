@@ -1,0 +1,15 @@
+    - name: Disable drbd service
+      service: name=drbd enabled=no
+
+    - name: Start the drbd service
+      command: service drbd start
+
+    - name: Restart the drbd service
+      command: service drbd restart
+
+    - name: Stop the drbd service
+      command: service drbd stop
+
+    - name: Start the Pacemaker service
+      command: service pacemaker restart
+

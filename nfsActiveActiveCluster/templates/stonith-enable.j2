@@ -1,0 +1,39 @@
+configure
+primitive p_drbd_r1 ocf:linbit:drbd \
+    params drbd_resource="drbd1" \
+    op start interval="0" timeout="240" \
+    op stop interval="0" timeout="100" \
+    op monitor interval="29s" role="Master" \
+    op monitor interval="31s" role="Slave"
+ms ms_drbd_r1 p_drbd_r1 \
+    meta master-max="2" \
+    master-node-max="1" \
+    clone-max="2" \
+    clone-node-max="1" \
+    notify="true"
+primitive p_fs_r1 ocf:heartbeat:Filesystem \
+    params device="/dev/drbd1" \
+    directory="/storage" \
+    fstype="gfs2" \
+    op start interval="0" timeout="60" \
+    op stop interval="0" timeout="60" \
+    op monitor interval="60" timeout="40"
+clone cl_fs_r1 p_fs_r1 meta interleave="true"
+colocation co_fs_with_drbd inf: cl_fs_r1 ms_drbd_r1:Master
+order o_drbd_before_fs inf: ms_drbd_r1:promote cl_fs_r1
+primitive stonith_fence_virsh_qmnfs01 stonith:fence_virsh \
+    params action="reboot" ipaddr="172.16.0.11" \
+    login="root" identity_file="/root/.ssh/id_rsa.pub" \
+    port="qmnfs01"
+primitive stonith_fence_virsh_qmnfs02 stonith:fence_virsh \
+    params action="reboot" ipaddr="172.16.0.12" \
+    login="root" identity_file="/root/.ssh/id_rsa.pub" \
+    port="qmnfs02"
+location l_stonith_fence_virsh_machine1_noton_qmnfs01 \
+    stonith_fence_virsh_qmnfs01 -inf: qmnfs01
+location l_stonith_fence_virsh_machine1_noton_qmnfs02 \
+    stonith_fence_virsh_qmnfs02 -inf: qmnfs02
+property stonith-enabled="true"
+commit
+exit
+

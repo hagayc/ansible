@@ -1,0 +1,48 @@
+# Updates CentOS to latest version and install additional packages
+
+- name: install python SElinux module
+  yum: name=libselinux-python state=present
+
+- name: upgrade all packages
+  yum: name=* state=latest
+#  notify:
+#         - Restart server
+#         - Wait for server to restart
+- name: Set hosts file
+  template: src=/etc/ansible/playbooks/nfs-cluster/roles/updates/templates/hosts.j2 dest=/etc/hosts
+
+- name: Install additional packages
+  yum: state=present pkg={{ item }}
+  with_items:
+    - wget
+    - vim
+    - screen
+    - man
+    - perl
+    - python
+    - gcc
+    - make
+    - binutils
+    - kernel-headers
+    - kernel-devel
+- name: install the EL repo
+  yum: name=http://elrepo.org/elrepo-release-6-5.el6.elrepo.noarch.rpm                        
+
+- name: Fetch VMware Tools official repo
+  yum: name=https://packages.vmware.com/tools/esx/latest/repos/vmware-tools-repo-RHEL6-10.0.0-1.el6.x86_64.rpm
+
+- name: Install VMware Tools
+  yum: name={{ item }} state=present disable_gpg_check=yes
+  with_items:
+    - vmware-tools-esx-nox
+    - vmware-tools-esx-kmods
+
+- name: Install Ansible + VMware API
+  yum: state=present pkg={{ item }}
+  with_items:
+    - python-pyvmomi.noarch
+    - python-pip
+    - ansible
+  notify:
+    - Start and Enable VMware Tools
+

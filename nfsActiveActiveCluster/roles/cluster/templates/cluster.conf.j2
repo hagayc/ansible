@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<cluster config_version="1" name="pacemaker">
+    <cman two_node="1" expected_votes="1"/>
+    <fence_daemon clean_start="0" post_fail_delay="0" post_join_delay="3"/>
+    <clusternodes>
+        <clusternode name="qmnfs01" nodeid="1" votes="1">
+            <fence>
+                <method name="pcmk-redirect">
+                    <device name="pcmk" port="qmnfs01"/>
+                </method>
+            </fence>
+        </clusternode>
+        <clusternode name="qmnfs02" nodeid="2" votes="1">
+            <fence>
+                <method name="pcmk-redirect">
+                    <device name="pcmk" port="qmnfs02"/>
+                </method>
+            </fence>
+        </clusternode>
+    </clusternodes>
+    <fencedevices>
+        <fencedevice name="pcmk" agent="fence_pcmk"/>
+    </fencedevices>
+</cluster>
+

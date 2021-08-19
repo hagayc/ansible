@@ -1,0 +1,36 @@
+resource nfs-lv {
+        protocol C;
+        startup {
+            become-primary-on both;
+        }
+        disk {
+                fencing resource-and-stonith;
+        }
+        handlers {
+                fence-peer              "/usr/lib/drbd/crm-fence-peer.sh";
+                after-resync-target     "/usr/lib/drbd/crm-unfence-peer.sh";
+        }
+        net {
+                cram-hmac-alg sha1;
+                shared-secret "DRBD Super Secret Password";
+                timeout 180;
+                ping-int 3;
+                ping-timeout 9;
+                allow-two-primaries;
+                after-sb-0pri discard-zero-changes;
+                after-sb-1pri discard-secondary;
+                after-sb-2pri disconnect;
+        }
+        on qmnfs01.qmarkets.local {
+                device /dev/drbd1;
+                disk /dev/nfs-vg/nfs-lv;
+                address 172.16.0.11:7788;
+                meta-disk internal;
+        }
+        on qmnfs02.qmarkets.local {
+                device /dev/drbd1;
+                disk /dev/nfs-vg/nfs-lv;
+                address 172.16.0.12:7788;
+                meta-disk internal;
+        }
+}

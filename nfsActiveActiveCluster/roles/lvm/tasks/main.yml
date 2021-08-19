@@ -1,0 +1,15 @@
+- name: installing lvm2
+  yum: name=lvm2.x86_64 state=present
+
+- name: installing sg3_utils
+  yum: name=sg3_utils.x86_64 state=present
+
+- name: rescanning for new disks
+  command: /usr/bin/rescan-scsi-bus.sh
+
+- name: creating new LVM volume group
+  lvg: vg={{ create_vgname }} pvs={{ new_disk }} state=present
+
+- name: creating new LVM logical volume
+  lvol: vg={{ create_vgname }} lv={{ create_lvname }} size={{ create_lvsize }}
+
